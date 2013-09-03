@@ -14,55 +14,44 @@ module Spree
         def self.service_name
           self.description
         end
-        
-        def self.service_code
-          nil
-        end
-        
+
+        # get the corresponding value to match against
+        # in the rates_result hash response from retrieve_rates
+        # this has been added since not all of the calculators
+        # match against the service name the case being USPS
+        # which uses dynamic names depending of time to delivery
+        # eg: Priority Mail {0}™ where {0} is the number
+        # in days that it takes for delivery, in those cases
+        # we need to match against something else, that is
+        # what needs to be called inside target_node
+        # default is calculator description, called from
+        # service_name
         def target_node
-          'service_name'
+          self.class.service_name
         end
 
-        def compute(package)
-          order               = package.order
-          stock_location      = package.stock_location
-          origin              = build_location(stock_location)
-          destination         = build_location(order.ship_address)
+        def compute package
+          extract_package_attributes package
 
-          rates_result        = Rails.cache.fetch(cache_key(package)) do
-            shipping_packages = packages(package)
-            if shipping_packages.empty?
-              {}
-            else
-              retrieve_rates(origin, destination, shipping_packages)
-            end
-          end
+          rates_result = retrieve_rates
+          rate         = retrieve_rates[target_node]
 
-          return 0 if rates_result.kind_of?(Spree::ShippingError)
-          return 0 if rates_result.empty?
-
-          rate = rates_result["#{self.class.send(get_target_node)}"]
-
-          return 0 unless rate
+          return nil unless rate
           rate = rate.to_f + (Spree::ActiveShipping::Config[:handling_fee].to_f || 0.0)
 
           # divide by 100 since active_shipping rates are expressed as cents
           return rate/100.0
         end
 
-        def timing(package)
-          order          = package.order
-          stock_location = package.stock_location
-          origin         = build_location(stock_location)
-          destination    = build_location(order.ship_address)
-
-          timings_result = Rails.cache.fetch(cache_key(package)+"-timings") do
-            retrieve_timings(origin, destination, packages(package))
+        def timing package
+          extract_package_attributes package
+          
+          timings_result = Rails.cache.fetch(cache_key + "-timings") do
+            retrieve_timings packages
           end
           raise timings_result if timings_result.kind_of?(Spree::ShippingError)
           return nil if timings_result.nil? || !timings_result.is_a?(Hash) || timings_result.empty?
-          return timings_result[get_target_node]
-
+          return timings_result[target_node]
         end
 
         protected
@@ -72,17 +61,40 @@ module Spree
         end
 
         private
-        def retrieve_rates(origin, destination, packages)
-          begin
-            response = carrier.find_rates(origin, destination, packages)
-            # turn this beastly array into a nice little hash
-            # and make sure we collect the identifiers we need
-            rates = response.rates.collect do |rate|
-              action_node = rate.instance_variable_get("@#{target_node}").encode("UTF-8")
-              [CGI.unescapeHTML(action_node), rate.price]
+        def extract_package_attributes package
+          @package         = package
+          @order           = @package.order
+          @stock_location  = @package.stock_location
+          @origin          = build_location @stock_location
+          @destination     = build_location @order.ship_address
+        end
+        # this is the new retrieve_rates
+        # this method fetches the rates from cache
+        # or adds them if they aren't cached already
+        # it gets the rates from the calculator
+        # carrier from retrieve_carrier_rates
+        def retrieve_rates
+          rates_result = Rails.cache.fetch(cache_key) do
+            shipping_packages = packages
+            if shipping_packages.empty?
+              {}
+            else
+              retrieve_carrier_rates shipping_packages
             end
-            rate_hash = Hash[*rates.flatten]
-            return rate_hash
+          end
+          return nil if rates_result.kind_of?(Spree::ShippingError)
+          return nil if rates_result.empty?
+          return rates_result
+        end
+        # previously retrieve_rates
+        # renamed to make more sense of what
+        # this is actually doing instead
+        # of the generic *do it all* method
+        # that it used to be
+        def retrieve_carrier_rates packages
+          begin
+            response = carrier.find_rates(@origin, @destination, packages)
+            return process_rates_response response
           rescue ActiveMerchant::ActiveMerchantError => e
 
             if [ActiveMerchant::ResponseError, ActiveMerchant::Shipping::ResponseError].include?(e.class) && e.response.is_a?(ActiveMerchant::Shipping::Response)
@@ -106,11 +118,23 @@ module Spree
 
         end
 
+        # loop trough the rates response object
+        # and return a hash of {:name => :value}
+        # items to match against
+        def process_rates_response(response)
+          # turn this beastly array into a nice little hash
+          # and make sure we collect the identifiers we need
+          rates = response.rates.collect do |rate|
+            service_name = rate.service_name.encode("UTF-8")
+            [CGI.unescapeHTML(service_name), rate.price]
+          end
+          rate_hash = Hash[*rates.flatten]
+        end
 
-        def retrieve_timings(origin, destination, packages)
+        def retrieve_timings packages
           begin
             if carrier.respond_to?(:find_time_in_transit)
-              response = carrier.find_time_in_transit(origin, destination, packages)
+              response = carrier.find_time_in_transit(@origin, @destination, packages)
               return response
             end
           rescue ActiveMerchant::Shipping::ResponseError => re
@@ -131,19 +155,12 @@ module Spree
           end
         end
 
-
-
-        private
-        def get_target_node
-          !defined?(self.class[target_node]).nil? ? self.class[target_node] : self.send('target_node')
-        end
-
-        def convert_package_to_weights_array(package)
+        def convert_package_to_weights_array
           multiplier     = Spree::ActiveShipping::Config[:unit_multiplier]
           default_weight = Spree::ActiveShipping::Config[:default_weight]
-          max_weight     = get_max_weight(package)
+          max_weight     = get_max_weight
 
-          weights = package.contents.map do |content_item|
+          weights = @package.contents.map do |content_item|
             # ContentItem = Struct.new(:variant, :quantity, :state)
             item_weight = content_item.variant.weight.to_f
             item_weight = default_weight if item_weight <= 0
@@ -176,12 +193,12 @@ module Spree
           weights.flatten.compact.sort
         end
 
-        def convert_package_to_item_packages_array(package)
+        def convert_package_to_item_packages_array
           multiplier = Spree::ActiveShipping::Config[:unit_multiplier]
-          max_weight = get_max_weight(package)
+          max_weight = get_max_weight
           packages = []
 
-          package.contents.each do |content_item|
+          @package.contents.each do |content_item|
             variant  = content_item.variant
             quantity = content_item.quantity
             product  = variant.product
@@ -204,12 +221,12 @@ module Spree
 
         # Generates an array of ActiveMerchant::Shipping::Package objects based on
         # the quantities and weights of the variants inside the computed Package element
-        def packages(package)
+        def packages
           units                  = Spree::ActiveShipping::Config[:units].to_sym
           packages               = []
-          weights                = convert_package_to_weights_array(package)
-          max_weight             = get_max_weight(package)
-          item_specific_packages = convert_package_to_item_packages_array(package)
+          weights                = convert_package_to_weights_array
+          max_weight             = get_max_weight
+          item_specific_packages = convert_package_to_item_packages_array
 
           if max_weight <= 0
             packages << Package.new(weights.sum, [], :units => units)
@@ -233,9 +250,8 @@ module Spree
           packages
         end
 
-        def get_max_weight(package)
-          order                  = package.order
-          max_weight             = max_weight_for_country(order.ship_address.country)
+        def get_max_weight
+          max_weight             = max_weight_for_country(@order.ship_address.country)
           
           # Assuming we entered this value in Oz, so no need to multiply
           # max_weight_per_package = Spree::ActiveShipping::Config[:max_weight_per_package] * Spree::ActiveShipping::Config[:unit_multiplier]
@@ -250,21 +266,21 @@ module Spree
           max_weight
         end
 
-        def cache_key(package)
-          order          = package.order
-          stock_location = package.stock_location.nil? ? "" : "#{package.stock_location.id}-"
-          addr           = order.ship_address
-          contents_hash  = Digest::MD5.hexdigest(package.contents.map {|content_item| content_item.variant_id.to_s + "_" + content_item.quantity.to_s }.join("|"))
-          @cache_key     = "#{stock_location}#{carrier.name}-#{order.number}-#{addr.country.iso}-#{fetch_best_state_from_address(addr)}-#{addr.city}-#{addr.zipcode}-#{contents_hash}-#{I18n.locale}".gsub(" ","")
+        def cache_key
+          stock_location = @stock_location.nil? ? "" : "#{@stock_location.id}-"
+          ship_address   = @order.ship_address
+          contents_hash  = Digest::MD5.hexdigest(@package.contents.map {|content_item| content_item.variant.id.to_s + "_" + content_item.quantity.to_s }.join("|"))
+          @cache_key     = "#{@stock_location}#{carrier.name}-#{@order.number}-#{ship_address.country.iso}-#{fetch_best_state_from_address(ship_address)}-#{ship_address.city}-#{ship_address.zipcode}-#{contents_hash}-#{I18n.locale}".gsub(" ","")
         end
         
-        def fetch_best_state_from_address(addr)
-          addr.state ? addr.state.abbr : addr.state_name
+        def fetch_best_state_from_address address
+          address.state ? address.state.abbr : address.state_name
         end
         
-        def build_location(addr)
-          Location.new(:country => addr.country.iso, :state => fetch_best_state_from_address(addr), :city => addr.city, :zip => addr.zipcode)
+        def build_location address
+          Location.new(:country => address.country.iso, :state => fetch_best_state_from_address(address), :city => address.city, :zip => address.zipcode)
         end
+
       end
     end
   end

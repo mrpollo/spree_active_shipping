@@ -3,12 +3,15 @@ module Spree
     module Usps
       class Base < Spree::Calculator::Shipping::ActiveShipping::Base
 
-        def self.service_code
+        def service_code
           0
         end
-        
+
         def target_node
-          'service_code'
+          # return as a string since the object it matches
+          # from has been encoded to string from its 
+          # API XML Response, this comes from active_shipping
+          "#{self.service_code}"
         end
 
         def carrier
@@ -24,6 +27,17 @@ module Spree
         # weight limit in ounces or zero (if there is no limit)
         def max_weight_for_country(country)
           1120  # 70 lbs
+        end
+
+        private
+        def process_rates_response(response)
+          # turn this beastly array into a nice little hash
+          # and make sure we collect the identifiers we need
+          rates = response.rates.collect do |rate|
+            service_code = rate.service_code.encode("UTF-8")
+            [CGI.unescapeHTML(service_code), rate.price]
+          end
+          rate_hash = Hash[*rates.flatten]
         end
       end
     end

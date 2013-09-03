@@ -3,7 +3,7 @@ module Spree
     module Usps
       class FirstClassMailParcels < Spree::Calculator::Shipping::Usps::Base
 
-        def self.service_code
+        def service_code
           0 #First-Class Mail® Parcel
         end
 

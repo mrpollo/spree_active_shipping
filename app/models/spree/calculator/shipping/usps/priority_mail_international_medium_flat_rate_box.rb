@@ -18,7 +18,7 @@ module Spree
           "VE", "VG", "VN", "VU", "WF", "WS", "YE", "ZA", "ZM", "ZW"
         ]
 
-        def self.service_code
+        def service_code
           9 #Priority Mail International® Medium Flat Rate Box
         end
 

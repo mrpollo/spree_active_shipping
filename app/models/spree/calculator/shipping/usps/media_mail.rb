@@ -2,7 +2,7 @@ module Spree
   module Calculator::Shipping
     module Usps
       class MediaMail < Spree::Calculator::Shipping::Usps::Base
-        def self.service_code
+        def service_code
           6 #Media Mail®
         end
 

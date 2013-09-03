@@ -2,7 +2,7 @@ module Spree
   module Calculator::Shipping
     module Usps
       class PriorityMailFlatRateEnvelope < Spree::Calculator::Shipping::Usps::Base
-        def self.service_code
+        def service_code
           16 #Priority Mail {0}™ Flat Rate Envelope
         end
 

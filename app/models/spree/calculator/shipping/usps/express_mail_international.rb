@@ -23,7 +23,7 @@ module Spree
           "UY"=>44, "UZ"=>66, "VU"=>55, "VA"=>66, "VE"=>66, "VN"=>66, "WS"=>44, "YE"=>66, "ZM"=>66, "ZW"=>44
         }
 
-        def self.service_code
+        def service_code
           1 #Priority Mail Express International™
         end
 

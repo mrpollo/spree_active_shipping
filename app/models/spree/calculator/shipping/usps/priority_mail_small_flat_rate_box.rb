@@ -2,7 +2,7 @@ module Spree
   module Calculator::Shipping
     module Usps
       class PriorityMailSmallFlatRateBox < Spree::Calculator::Shipping::Usps::Base
-        def self.service_code
+        def service_code
           28 #Priority Mail {0}™ Small Flat Rate Box
         end
 

@@ -18,7 +18,7 @@ module Spree
           "VE", "VG", "VN", "VU", "WF", "WS", "YE", "ZA", "ZM", "ZW"
         ]
 
-        def self.service_code
+        def service_code
           11 #Priority Mail International® Large Flat Rate Box
         end
 

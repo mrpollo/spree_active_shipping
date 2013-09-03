@@ -18,7 +18,7 @@ module Spree
           "UY", "UZ", "VA", "VC", "VE", "VG", "VN", "VU", "WF", "WS", "YE", "ZA", "ZM", "ZW"
         ]
 
-        def self.service_code
+        def service_code
           16 #Priority Mail International® Small Flat Rate Box**
         end
 

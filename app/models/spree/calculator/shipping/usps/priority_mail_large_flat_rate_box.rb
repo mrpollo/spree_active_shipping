@@ -2,7 +2,7 @@ module Spree
   module Calculator::Shipping
     module Usps
       class PriorityMailLargeFlatRateBox < Spree::Calculator::Shipping::Usps::Base
-        def self.service_code
+        def service_code
           22 #Priority Mail {0}™ Large Flat Rate Box
         end
 

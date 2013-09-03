@@ -26,7 +26,7 @@ module Spree
           "AE"=>70, "UZ"=>70, "VN"=>70
         }
 
-        def self.service_code
+        def service_code
           2 #Priority Mail International®
         end
 
