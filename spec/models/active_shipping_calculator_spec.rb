@@ -31,7 +31,6 @@ module ActiveShipping
 
     let(:carrier) { ActiveMerchant::Shipping::USPS.new(:login => "FAKEFAKEFAKE") }
     let(:calculator) { Spree::Calculator::Shipping::Usps::ExpressMail.new }
-    let(:package) { order.shipments.first.to_package }
 
     before(:each) do
       order.create_proposed_shipments
@@ -42,10 +41,24 @@ module ActiveShipping
       Rails.cache.clear
     end
 
+    let(:package) do
+      order.shipments.first.to_package
+    end
+
+    def sample_stub_request
+      stub_request(:get, /http:\/\/production.shippingapis.com\/ShippingAPI.dll.*/).
+        to_return(:body => fixture(:normal_rates_request))
+    end
+
+    def calculator_precompute
+      sample_stub_request
+      calculator.compute(package)
+    end
+
     describe "compute" do
+
       it "should use the carrier supplied in the initializer" do
-        stub_request(:get, /http:\/\/production.shippingapis.com\/ShippingAPI.dll.*/).
-          to_return(:body => fixture(:normal_rates_request))
+        sample_stub_request
         calculator.compute(package).should == 14.1
       end
 
@@ -62,43 +75,45 @@ module ActiveShipping
         calculator.compute(package)
       end
 
-      xit "should check the cache first before finding rates" do
-        Rails.cache.fetch(calculator.send(:cache_key, order)) { Hash.new }
+      it "should check the cache first before finding rates" do
+        calculator_precompute
+        
+        Rails.cache.fetch(calculator.send(:cache_key)) { Hash.new }
         carrier.should_not_receive(:find_rates)
         calculator.compute(package)
       end
 
       context "with valid response" do
         before do
-          carrier.should_receive(:find_rates).and_return(response)
+          # carrier.should_receive(:find_rates).and_return(response)
+          sample_stub_request
         end
 
-        xit "should return rate based on calculator's service_name" do
-          calculator.class.should_receive(:description).and_return("Super Fast")
+        it "should return rate based on calculator's target_node" do
+          calculator.should_receive(:target_node).and_return("3")
           rate = calculator.compute(package)
-          rate.should == 9.99
+          rate.should == 14.10
         end
 
-        xit "should include handling_fee when configured" do
-          calculator.class.should_receive(:description).and_return("Super Fast")
+        it "should include handling_fee when configured" do
+          calculator.should_receive(:target_node).and_return("3")
           Spree::ActiveShipping::Config.set(:handling_fee => 100)
           rate = calculator.compute(package)
-          rate.should == 10.99
+          rate.should == 15.10
         end
 
-        xit "should return nil if service_name is not found in rate_hash" do
-          calculator.class.should_receive(:description).and_return("Extra-Super Fast")
+        it "should return nil if target is not found in rate_hash" do
+          calculator.should_receive(:target_node).and_return("Extra-Super Fast")
           rate = calculator.compute(package)
           rate.should be_nil
         end
       end
     end
 
-    describe "service_name" do
-      it "should return description when not defined" do
-        calculator.class.service_name.should == calculator.description
+    describe "target_node" do
+      it "should return service_name when not defined" do
+        calculator.target_node.should == calculator.service_name
       end
     end
-end
-
+  end
 end
