@@ -16,10 +16,6 @@ module SpreeActiveShippingExtension
         Rails.configuration.cache_classes ? require(c) : load(c)
       end
 
-      #Only required until following active_shipping commit is merged (add negotiated rates).
-      #http://github.com/BDQ/active_shipping/commit/2f2560d53aa7264383e5a35deb7264db60eb405a
-      ActiveMerchant::Shipping::UPS.send(:include, Spree::ActiveShipping::UpsOverride)
-
       # Fix Canada Post "Ready to ship" package
       ActiveMerchant::Shipping::CanadaPost.send(:include, Spree::ActiveShipping::CanadaPostOverride)
     end
