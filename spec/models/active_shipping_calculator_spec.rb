@@ -109,11 +109,5 @@ module ActiveShipping
         end
       end
     end
-
-    describe "target_node" do
-      it "should return service_name when not defined" do
-        calculator.target_node.should == calculator.service_name
-      end
-    end
   end
 end
