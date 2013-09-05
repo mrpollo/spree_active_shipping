@@ -68,6 +68,7 @@ module Spree
           @origin          = build_location @stock_location
           @destination     = build_location @order.ship_address
         end
+
         # this is the new retrieve_rates
         # this method fetches the rates from cache
         # or adds them if they aren't cached already
@@ -79,6 +80,7 @@ module Spree
             if shipping_packages.empty?
               {}
             else
+              binding.pry
               retrieve_carrier_rates shipping_packages
             end
           end
@@ -86,6 +88,7 @@ module Spree
           return nil if rates_result.empty?
           return rates_result
         end
+
         # previously retrieve_rates
         # renamed to make more sense of what
         # this is actually doing instead
@@ -93,29 +96,41 @@ module Spree
         # that it used to be
         def retrieve_carrier_rates packages
           begin
+            # binding.pry
             response = carrier.find_rates(@origin, @destination, packages)
             return process_rates_response response
           rescue ActiveMerchant::ActiveMerchantError => e
 
-            if [ActiveMerchant::ResponseError, ActiveMerchant::Shipping::ResponseError].include?(e.class) && e.response.is_a?(ActiveMerchant::Shipping::Response)
-              params = e.response.params
-              if params.has_key?("Response") && params["Response"].has_key?("Error") && params["Response"]["Error"].has_key?("ErrorDescription")
-                message = params["Response"]["Error"]["ErrorDescription"]
-              # Canada Post specific error message
-              elsif params.has_key?("eparcel") && params["eparcel"].has_key?("error") && params["eparcel"]["error"].has_key?("statusMessage")
-                message = e.response.params["eparcel"]["error"]["statusMessage"]
-              else
-                message = e.message
-              end
-            else
-              message = e.message
-            end
+            get_carrier_error_message e
 
             error = Spree::ShippingError.new("#{I18n.t(:shipping_error)}: #{message}")
             Rails.cache.write @cache_key, error #write error to cache to prevent constant re-lookups
             raise error
           end
+        end
+        
+        def get_carrier_error_message error
+          return error.response.params["Response"]["Error"]["ErrorDescription"] unless is_response_error_description? error
+          return error.response.params["eparcel"]["error"]["statusMessage"] unless is_response_parcel_error_status_message? error
+          return error.message
+        end
 
+        def is_valid_response? error
+          is_type_response_error?( error.class ) && error.response.is_a?(ActiveMerchant::Shipping::Response)
+        end
+
+        def is_type_response_error? error_class
+          [ActiveMerchant::ResponseError, ActiveMerchant::Shipping::ResponseError].include?(error_class)
+        end
+
+        def is_response_error_description? error
+          return false unless is_valid_response?( error )
+          error.params.try(:[], "Response").try(:[], "Error").try(:[], "ErrorDescription").present?
+        end
+
+        def is_response_parcel_error_status_message error
+          return false unless is_valid_response?( error )
+          error.params.try(:[], "eparcel").try(:[], "error").try(:[], "statusMessage").present?
         end
 
         # loop trough the rates response object

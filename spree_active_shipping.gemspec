@@ -20,5 +20,6 @@ Gem::Specification.new do |s|
   s.add_dependency('spree_core', '~> 2.0.0')
   s.add_dependency('active_shipping', '~> 0.10.0')
   s.add_development_dependency 'pry'
+  s.add_development_dependency 'pry-debugger'
   s.add_development_dependency 'webmock'
 end
