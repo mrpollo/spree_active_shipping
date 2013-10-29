@@ -126,7 +126,7 @@ module Spree
           rescue ActiveMerchant::ActiveMerchantError => exception
             exception_message = exception.message
 
-            if is_active_merchant_error(exception.response) && is_active_merchant_response(exception.response)
+            if is_active_merchant_error?(exception.response) && is_active_merchant_response?(exception.response)
               # better errors from api
               exception_message = exception.response.params["Response"]["Error"]["ErrorDescription"] if has_error_description?(exception.response.params)
               exception_message = exception.response.params["eparcel"]["error"]["statusMessage"] if has_error_description_from_canada_post?(exception.response.params)
