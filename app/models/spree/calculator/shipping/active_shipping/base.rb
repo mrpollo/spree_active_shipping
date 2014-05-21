@@ -91,7 +91,7 @@ module Spree
         def valid_weight_for_package? package, max_weight
           return false if max_weight.nil?
           return true if max_weight.zero?
-          package.weight <= max_weight
+          (package.weight * Spree::ActiveShipping::Config[:unit_multiplier]) <= max_weight
         end
 
         def retrieve_rates(origin, destination, shipment_packages)
