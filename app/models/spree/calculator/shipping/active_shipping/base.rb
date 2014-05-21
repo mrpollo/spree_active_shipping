@@ -269,10 +269,14 @@ module Spree
         end
 
         def build_location address
-          Location.new(:country => address.country.iso,
-                       :state   => fetch_best_state_from_address(address),
-                       :city    => address.city,
-                       :zip     => address.zipcode)
+          Location.new(:country       => address.country.iso,
+                       :state         => fetch_best_state_from_address(address),
+                       :city          => address.city,
+                       :zip           => address.zipcode,
+                       :address1      => address.address1 || "",
+                       :address2      => address.address2 || "",
+                       :company_name  => address.try(:company),
+                       :address_type  => (address.try(:company).present?) ? 'commercial' : 'residential')
         end
 
         def retrieve_rates_from_cache package, origin, destination
