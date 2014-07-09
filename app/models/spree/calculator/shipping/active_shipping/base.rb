@@ -272,7 +272,7 @@ module Spree
           Location.new(:country       => address.country.iso,
                        :state         => fetch_best_state_from_address(address),
                        :city          => address.city,
-                       :zip           => address.zipcode.strip,
+                       :zip           => address.zipcode.strip.delete(" "), # extra delete for CAN and UK Postal codes
                        :address1      => address.address1 || "",
                        :address2      => address.address2 || "",
                        :company_name  => address.try(:company),
