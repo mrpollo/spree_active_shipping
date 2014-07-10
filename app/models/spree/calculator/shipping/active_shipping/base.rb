@@ -1,8 +1,6 @@
 # This is a base calculator for shipping calcualations using the ActiveShipping plugin.  It is not intended to be
 # instantiated directly.  Create subclass for each specific shipping method you wish to support instead.
 #
-# Digest::MD5 is used for cache_key generation.
-require 'digest/md5'
 require_dependency 'spree/calculator'
 
 module Spree
@@ -254,14 +252,6 @@ module Spree
           end
 
           max_weight
-        end
-
-        def cache_key(package)
-          stock_location = package.stock_location.nil? ? "" : "#{package.stock_location.id}-"
-          order = package.order
-          ship_address = package.order.ship_address
-          contents_hash = Digest::MD5.hexdigest(package.contents.map {|content_item| content_item.variant.id.to_s + "_" + content_item.quantity.to_s }.join("|"))
-          @cache_key = "#{stock_location}#{carrier.name}-#{order.number}-#{ship_address.country.iso}-#{fetch_best_state_from_address(ship_address)}-#{ship_address.city}-#{ship_address.zipcode.strip}-#{contents_hash}-#{I18n.locale}".gsub(" ","")
         end
 
         def fetch_best_state_from_address address
