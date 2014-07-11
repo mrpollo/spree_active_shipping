@@ -254,6 +254,10 @@ module Spree
           max_weight
         end
 
+        def cache_key package
+          package.to_shipment.cache_key carrier
+        end
+
         def fetch_best_state_from_address address
           address.state ? address.state.abbr : address.state_name
         end
